@@ -1,3 +1,4 @@
+altair
 category-encoders
 ipykernel
 joblib
