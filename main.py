@@ -30,7 +30,10 @@ if not MODEL_PATH.exists():
 try:
     artifact = load_artifact(MODEL_PATH)
 except Exception as exc:
-    st.error(f"Could not load the model artifact: {exc}")
+    st.error(
+        f"Could not load the model artifact: {exc}. "
+        "Run notebook.ipynb to regenerate models/attrition_model.joblib."
+    )
     st.stop()
 
 try:

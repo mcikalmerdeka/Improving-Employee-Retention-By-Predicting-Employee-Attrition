@@ -127,17 +127,23 @@ def render_insights_tab(artifact: dict, training: pd.DataFrame) -> None:
     st.subheader("Attrition patterns")
     left, right = st.columns(2, gap="large")
     with left:
-        for column in ["Pekerjaan", "PerformancePegawai"]:
+        for column, label in [
+            ("Pekerjaan", "job family"),
+            ("PerformancePegawai", "performance rating"),
+        ]:
             with st.container(border=True):
-                st.markdown(f"**Attrition by {column}**")
+                st.markdown(f"**Attrition by {label}**")
                 table = attrition_by_group(training, column)
                 st.altair_chart(
                     attrition_chart(table, column), width="stretch"
                 )
     with right:
-        for column in ["JenjangKarir", "HiringPlatform"]:
+        for column, label in [
+            ("JenjangKarir", "career level"),
+            ("SkorSurveyEngagement", "engagement score"),
+        ]:
             with st.container(border=True):
-                st.markdown(f"**Attrition by {column}**")
+                st.markdown(f"**Attrition by {label}**")
                 table = attrition_by_group(training, column)
                 st.altair_chart(
                     attrition_chart(table, column), width="stretch"

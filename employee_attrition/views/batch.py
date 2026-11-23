@@ -24,6 +24,24 @@ def _drop_unnamed(frame: pd.DataFrame) -> pd.DataFrame:
     ]
 
 
+def _missing_columns(frame: pd.DataFrame) -> list[str]:
+    """Required raw inputs absent from an uploaded batch."""
+    return [
+        column
+        for column in schema.RAW_INPUT_COLUMNS
+        if column not in frame.columns
+    ]
+
+
+def _display_frame(results: pd.DataFrame) -> pd.DataFrame:
+    """Add a percent-scaled copy for the progress column."""
+    display = results.copy()
+    display["attrition_probability_pct"] = (
+        display["attrition_probability"] * 100
+    )
+    return display
+
+
 def _read_upload(uploaded) -> pd.DataFrame | None:
     try:
         return _drop_unnamed(pd.read_csv(uploaded)).reset_index(drop=True)
@@ -92,11 +110,7 @@ def render_batch_tab(artifact: dict) -> None:
         st.error("The uploaded file has no rows.")
         return
 
-    missing = [
-        column
-        for column in schema.RAW_INPUT_COLUMNS
-        if column not in raw.columns
-    ]
+    missing = _missing_columns(raw)
     if missing:
         st.error("Missing required columns: " + ", ".join(missing))
         return
@@ -146,16 +160,23 @@ def render_batch_tab(artifact: dict) -> None:
             border=True,
         )
 
+    display = _display_frame(results)
+    display_columns = [
+        "Source row",
+        *schema.MODEL_FEATURES,
+        "attrition_probability_pct",
+        "risk_tier",
+    ]
     st.dataframe(
-        results[DISPLAY_COLUMNS],
+        display[display_columns],
         hide_index=True,
         column_config={
             "Source row": st.column_config.NumberColumn("Row", format="%d"),
-            "attrition_probability": st.column_config.ProgressColumn(
+            "attrition_probability_pct": st.column_config.ProgressColumn(
                 "Attrition probability",
                 format="%.1f%%",
                 min_value=0.0,
-                max_value=1.0,
+                max_value=100.0,
             ),
         },
     )

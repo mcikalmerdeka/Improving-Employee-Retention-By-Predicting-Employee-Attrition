@@ -34,7 +34,29 @@ _ARTIFACT_KEYS = [
     "feature_columns",
     "imputation_values",
     "risk_tier_cutoffs",
+    "model_name",
+    "metrics",
+    "training_summary",
+    "test_predictions",
+    "train_probabilities_sorted",
+    "examples",
+    "default_values",
+    "coefficients",
+    "permutation_importance",
 ]
+
+_METRIC_KEYS = [
+    "accuracy",
+    "precision",
+    "recall",
+    "f1",
+    "roc_auc",
+    "average_precision",
+    "confusion_matrix",
+    "threshold",
+]
+
+_SUMMARY_KEYS = ["n_rows", "n_train", "n_test", "positive_rate", "n_features"]
 
 
 def _require_columns(frame: pd.DataFrame, columns: list[str]) -> None:
@@ -59,7 +81,9 @@ def clean_raw(raw: pd.DataFrame) -> pd.DataFrame:
         or pd.api.types.is_string_dtype(frame[column].dtype)
     ]
     for column in object_columns:
-        frame[column] = frame[column].str.strip()
+        frame[column] = frame[column].map(
+            lambda value: value.strip() if isinstance(value, str) else value
+        )
 
     frame["TanggalLahir"] = pd.to_datetime(
         frame["TanggalLahir"], errors="coerce", format="mixed"
@@ -170,6 +194,90 @@ def load_artifact(path: str | Path) -> dict[str, Any]:
     missing = [key for key in _ARTIFACT_KEYS if key not in artifact]
     if missing:
         raise ValueError(f"Artifact is missing keys: {', '.join(missing)}")
+
+    model = artifact["model"]
+    if not hasattr(model, "predict_proba"):
+        raise ValueError("Artifact model must expose predict_proba")
+
+    if not isinstance(artifact["encoders"], dict):
+        raise ValueError("Artifact encoders must be a dictionary")
+    if not isinstance(artifact["feature_columns"], list):
+        raise ValueError("Artifact feature_columns must be a list")
+    if not isinstance(artifact["imputation_values"], dict):
+        raise ValueError("Artifact imputation_values must be a dictionary")
+
+    cutoffs = artifact["risk_tier_cutoffs"]
+    if not isinstance(cutoffs, dict) or not {"moderate", "high"} <= set(cutoffs):
+        raise ValueError(
+            "Artifact risk_tier_cutoffs must contain moderate and high"
+        )
+
+    metrics = artifact["metrics"]
+    if not isinstance(metrics, dict):
+        raise ValueError("Artifact metrics must be a dictionary")
+    missing_metrics = [key for key in _METRIC_KEYS if key not in metrics]
+    if missing_metrics:
+        raise ValueError(
+            f"Artifact metrics missing keys: {', '.join(missing_metrics)}"
+        )
+
+    summary = artifact["training_summary"]
+    if not isinstance(summary, dict):
+        raise ValueError("Artifact training_summary must be a dictionary")
+    missing_summary = [key for key in _SUMMARY_KEYS if key not in summary]
+    if missing_summary:
+        raise ValueError(
+            "Artifact training_summary missing keys: "
+            + ", ".join(missing_summary)
+        )
+
+    predictions = artifact["test_predictions"]
+    if not isinstance(predictions, pd.DataFrame) or not {
+        "y_true",
+        "y_proba",
+    } <= set(predictions.columns):
+        raise ValueError(
+            "Artifact test_predictions must be a DataFrame with "
+            "y_true and y_proba"
+        )
+
+    if not isinstance(artifact["train_probabilities_sorted"], (list, tuple)):
+        raise ValueError(
+            "Artifact train_probabilities_sorted must be a sequence"
+        )
+
+    examples = artifact["examples"]
+    if not isinstance(examples, dict) or not {
+        "high_risk",
+        "low_risk",
+    } <= set(examples):
+        raise ValueError(
+            "Artifact examples must contain high_risk and low_risk"
+        )
+    for name in ("high_risk", "low_risk"):
+        missing_example = [
+            column
+            for column in schema.RAW_INPUT_COLUMNS
+            if column not in examples[name]
+        ]
+        if missing_example:
+            raise ValueError(
+                f"Artifact example '{name}' is missing columns: "
+                + ", ".join(missing_example)
+            )
+
+    if not isinstance(artifact["default_values"], dict):
+        raise ValueError("Artifact default_values must be a dictionary")
+    if not isinstance(artifact["permutation_importance"], pd.DataFrame):
+        raise ValueError(
+            "Artifact permutation_importance must be a DataFrame"
+        )
+    coefficients = artifact["coefficients"]
+    if coefficients is not None and not isinstance(coefficients, pd.DataFrame):
+        raise ValueError(
+            "Artifact coefficients must be a DataFrame or None"
+        )
+
     return artifact
 
 
